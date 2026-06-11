@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Split — image comparison slider</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,400..800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#161413;
+    --panel:#201d1b;
+    --line:#363130;
+    --text:#ece7df;
+    --muted:#9a928a;
+    --warm:#e8a04c;   /* image A */
+    --cool:#5fb4c9;   /* image B */
+    --radius:10px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Archivo',sans-serif;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:32px 20px 48px;
+  }
+  header{width:100%;max-width:960px;margin-bottom:24px}
+  h1{
+    font-size:clamp(28px,5vw,44px);
+    font-weight:800;
+    font-stretch:115%;
+    letter-spacing:-.02em;
+    line-height:1;
+  }
+  h1 .a{color:var(--warm)}
+  h1 .b{color:var(--cool)}
+  h1 .bar{color:var(--muted);font-weight:400;font-stretch:75%}
+  header p{color:var(--muted);margin-top:8px;font-size:14px;max-width:52ch}
+
+  .controls{
+    width:100%;max-width:960px;
+    display:grid;
+    grid-template-columns:1fr 1fr auto;
+    gap:10px;
+    margin-bottom:14px;
+  }
+  @media (max-width:720px){.controls{grid-template-columns:1fr}}
+  .field{position:relative}
+  .field input{
+    width:100%;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    color:var(--text);
+    font-family:'JetBrains Mono',monospace;
+    font-size:13px;
+    padding:14px 12px 14px 12px;
+    border-top:3px solid var(--line);
+    outline:none;
+    transition:border-color .15s;
+  }
+  .field input::placeholder{color:#6d655e}
+  .field.a input{border-top-color:var(--warm)}
+  .field.b input{border-top-color:var(--cool)}
+  .field input:focus{border-color:var(--muted);border-top-color:inherit}
+  .field.a input:focus{border-top-color:var(--warm)}
+  .field.b input:focus{border-top-color:var(--cool)}
+  .field label{
+    position:absolute;top:-9px;left:10px;
+    font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
+    background:var(--bg);padding:0 6px;color:var(--muted);
+  }
+  .field.a label{color:var(--warm)}
+  .field.b label{color:var(--cool)}
+
+  button{
+    font-family:'Archivo',sans-serif;
+    font-weight:600;
+    font-size:14px;
+    border:none;
+    border-radius:var(--radius);
+    cursor:pointer;
+    padding:0 22px;
+    min-height:46px;
+    transition:filter .15s, background .15s;
+  }
+  #loadBtn{background:var(--text);color:var(--bg)}
+  #loadBtn:hover{filter:brightness(1.1)}
+  #shareBtn{
+    background:transparent;
+    color:var(--text);
+    border:1px solid var(--line);
+    margin-top:14px;
+  }
+  #shareBtn:hover{border-color:var(--muted)}
+  #shareBtn.copied{border-color:var(--cool);color:var(--cool)}
+
+  .stage{
+    width:100%;max-width:960px;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    overflow:hidden;
+    position:relative;
+    aspect-ratio:16/9;
+    user-select:none;
+    touch-action:none;
+  }
+  .stage.empty{
+    display:flex;align-items:center;justify-content:center;
+    color:var(--muted);font-size:14px;text-align:center;padding:20px;
+  }
+  .stage img{
+    position:absolute;inset:0;
+    width:100%;height:100%;
+    object-fit:contain;
+    pointer-events:none;
+    display:block;
+  }
+  #imgB{clip-path:inset(0 0 0 50%)}
+
+  .divider{
+    position:absolute;top:0;bottom:0;left:50%;
+    width:0;
+    pointer-events:none;
+  }
+  .divider::before{
+    content:"";
+    position:absolute;top:0;bottom:0;left:-1px;
+    width:2px;
+    background:linear-gradient(to bottom,var(--warm),var(--cool));
+  }
+  .handle{
+    position:absolute;top:50%;left:0;
+    transform:translate(-50%,-50%);
+    width:44px;height:44px;
+    border-radius:50%;
+    background:var(--bg);
+    border:2px solid var(--text);
+    display:flex;align-items:center;justify-content:center;
+    gap:5px;
+    pointer-events:auto;
+    cursor:ew-resize;
+    box-shadow:0 2px 14px rgba(0,0,0,.5);
+  }
+  .handle:focus-visible{outline:3px solid var(--cool);outline-offset:2px}
+  .handle span{
+    width:0;height:0;
+    border-top:6px solid transparent;
+    border-bottom:6px solid transparent;
+  }
+  .handle span:first-child{border-right:7px solid var(--warm)}
+  .handle span:last-child{border-left:7px solid var(--cool)}
+
+  .tag{
+    position:absolute;top:12px;
+    font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+    padding:4px 8px;border-radius:4px;
+    background:rgba(22,20,19,.75);
+    pointer-events:none;
+  }
+  .tag.a{left:12px;color:var(--warm)}
+  .tag.b{right:12px;color:var(--cool)}
+
+  .err{
+    color:#e07a6a;font-size:13px;margin-top:10px;display:none;
+    font-family:'JetBrains Mono',monospace;
+  }
+  footer{margin-top:auto;padding-top:28px;color:#6d655e;font-size:12px}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1><span class="a">A</span><span class="bar"> / </span><span class="b">B</span> Split</h1>
+  <p>Paste two image URLs, then drag the divider to compare. Copy a share link to open this tool with both images preloaded.</p>
+</header>
+
+<div class="controls">
+  <div class="field a">
+    <label for="urlA">Image A · left</label>
+    <input id="urlA" type="url" placeholder="https://example.com/before.jpg" spellcheck="false">
+  </div>
+  <div class="field b">
+    <label for="urlB">Image B · right</label>
+    <input id="urlB" type="url" placeholder="https://example.com/after.jpg" spellcheck="false">
+  </div>
+  <button id="loadBtn">Load images</button>
+</div>
+
+<div class="stage empty" id="stage">
+  <span id="emptyMsg">Enter two image URLs above and press “Load images”.</span>
+</div>
+<p class="err" id="errMsg"></p>
+
+<button id="shareBtn" title="Copy a URL that opens this page with both images preloaded">Copy share link</button>
+
+<footer>Tip: drag the handle, click anywhere on the image, or use ← / → arrow keys.</footer>
+
+<script>
+(function(){
+  const stage   = document.getElementById('stage');
+  const inputA  = document.getElementById('urlA');
+  const inputB  = document.getElementById('urlB');
+  const loadBtn = document.getElementById('loadBtn');
+  const shareBtn= document.getElementById('shareBtn');
+  const errMsg  = document.getElementById('errMsg');
+
+  let imgA=null, imgB=null, divider=null, handle=null;
+  let pos = 50;          // divider position, percent
+  let dragging = false;
+  let loaded = false;
+
+  function showError(msg){
+    errMsg.textContent = msg;
+    errMsg.style.display = 'block';
+  }
+  function clearError(){ errMsg.style.display = 'none'; }
+
+  function buildViewer(srcA, srcB){
+    stage.classList.remove('empty');
+    stage.innerHTML =
+      '<img id="imgA" alt="Image A">' +
+      '<img id="imgB" alt="Image B">' +
+      '<span class="tag a">A</span><span class="tag b">B</span>' +
+      '<div class="divider" id="divider">' +
+        '<div class="handle" id="handle" tabindex="0" role="slider" ' +
+        'aria-label="Comparison divider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">' +
+        '<span></span><span></span></div>' +
+      '</div>';
+
+    imgA   = document.getElementById('imgA');
+    imgB   = document.getElementById('imgB');
+    divider= document.getElementById('divider');
+    handle = document.getElementById('handle');
+
+    let pending = 2, failed = [];
+    function done(){
+      if(--pending) return;
+      if(failed.length){
+        showError('Could not load: ' + failed.join(', ') +
+          ' — check the URL, and note some hosts block embedding.');
+      }
+    }
+    imgA.onload = done; imgB.onload = done;
+    imgA.onerror = ()=>{ failed.push('Image A'); done(); };
+    imgB.onerror = ()=>{ failed.push('Image B'); done(); };
+    imgA.src = srcA;
+    imgB.src = srcB;
+
+    pos = 50;
+    applyPos();
+    loaded = true;
+    bindDrag();
+  }
+
+  function applyPos(){
+    pos = Math.max(0, Math.min(100, pos));
+    imgB.style.clipPath = 'inset(0 0 0 ' + pos + '%)';
+    divider.style.left = pos + '%';
+    handle.setAttribute('aria-valuenow', Math.round(pos));
+  }
+
+  function posFromEvent(e){
+    const r = stage.getBoundingClientRect();
+    const x = (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
+    pos = (x / r.width) * 100;
+    applyPos();
+  }
+
+  function bindDrag(){
+    stage.addEventListener('pointerdown', e=>{
+      dragging = true;
+      stage.setPointerCapture(e.pointerId);
+      posFromEvent(e);
+    });
+    stage.addEventListener('pointermove', e=>{ if(dragging) posFromEvent(e); });
+    stage.addEventListener('pointerup',   ()=>{ dragging=false; });
+    stage.addEventListener('pointercancel',()=>{ dragging=false; });
+
+    handle.addEventListener('keydown', e=>{
+      const step = e.shiftKey ? 10 : 2;
+      if(e.key==='ArrowLeft'){ pos-=step; applyPos(); e.preventDefault(); }
+      if(e.key==='ArrowRight'){ pos+=step; applyPos(); e.preventDefault(); }
+      if(e.key==='Home'){ pos=0; applyPos(); e.preventDefault(); }
+      if(e.key==='End'){ pos=100; applyPos(); e.preventDefault(); }
+    });
+  }
+
+  function load(){
+    clearError();
+    const a = inputA.value.trim();
+    const b = inputB.value.trim();
+    if(!a || !b){ showError('Both image URLs are required.'); return; }
+    try{ new URL(a); new URL(b); }
+    catch{ showError('One of the URLs is not valid. Include https://'); return; }
+    buildViewer(a, b);
+    // keep the address bar in sync without reloading
+    try{
+      const u = new URL(window.location.href);
+      u.searchParams.set('a', a);
+      u.searchParams.set('b', b);
+      window.history.replaceState(null, '', u.toString());
+    }catch(e){ /* sandboxed environments may disallow this */ }
+  }
+
+  loadBtn.addEventListener('click', load);
+  [inputA, inputB].forEach(el=>{
+    el.addEventListener('keydown', e=>{ if(e.key==='Enter') load(); });
+  });
+
+  shareBtn.addEventListener('click', async ()=>{
+    const a = inputA.value.trim(), b = inputB.value.trim();
+    if(!a || !b){ showError('Enter both URLs before copying a share link.'); return; }
+    clearError();
+    const u = new URL(window.location.href);
+    u.search = '';
+    u.searchParams.set('a', a);
+    u.searchParams.set('b', b);
+    const link = u.toString();
+    try{
+      await navigator.clipboard.writeText(link);
+    }catch{
+      // clipboard API blocked: fall back to a prompt
+      window.prompt('Copy this link:', link);
+    }
+    shareBtn.classList.add('copied');
+    shareBtn.textContent = 'Link copied ✓';
+    setTimeout(()=>{
+      shareBtn.classList.remove('copied');
+      shareBtn.textContent = 'Copy share link';
+    }, 2000);
+  });
+
+  // Preload from URL parameters: ?a=...&b=...  (also accepts img1/img2, left/right)
+  const params = new URLSearchParams(window.location.search);
+  const pA = params.get('a') || params.get('img1') || params.get('left');
+  const pB = params.get('b') || params.get('img2') || params.get('right');
+  if(pA && pB){
+    inputA.value = pA;
+    inputB.value = pB;
+    load();
+  }
+})();
+</script>
+</body>
+</html>
