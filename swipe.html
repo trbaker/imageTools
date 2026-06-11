@@ -3,18 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Split — image comparison slider</title>
+<title>Image Compare</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,400..800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#161413;
-    --panel:#201d1b;
-    --line:#363130;
-    --text:#ece7df;
-    --muted:#9a928a;
-    --warm:#e8a04c;   /* image A */
-    --cool:#5fb4c9;   /* image B */
+    --bg:#ffffff;
+    --panel:#f6f4f1;
+    --line:#ddd7d0;
+    --text:#1d1a17;
+    --muted:#7a736b;
+    --warm:#c5770f;   /* image A */
+    --cool:#1f86a5;   /* image B */
     --radius:10px;
   }
   *{box-sizing:border-box;margin:0;padding:0}
@@ -63,7 +63,7 @@
     outline:none;
     transition:border-color .15s;
   }
-  .field input::placeholder{color:#6d655e}
+  .field input::placeholder{color:#aaa29a}
   .field.a input{border-top-color:var(--warm)}
   .field.b input{border-top-color:var(--cool)}
   .field input:focus{border-color:var(--muted);border-top-color:inherit}
@@ -88,8 +88,8 @@
     min-height:46px;
     transition:filter .15s, background .15s;
   }
-  #loadBtn{background:var(--text);color:var(--bg)}
-  #loadBtn:hover{filter:brightness(1.1)}
+  #loadBtn{background:var(--text);color:#fff}
+  #loadBtn:hover{background:#403a33}
   #shareBtn{
     background:transparent;
     color:var(--text);
@@ -145,7 +145,7 @@
     gap:5px;
     pointer-events:auto;
     cursor:ew-resize;
-    box-shadow:0 2px 14px rgba(0,0,0,.5);
+    box-shadow:0 2px 10px rgba(29,26,23,.25);
   }
   .handle:focus-visible{outline:3px solid var(--cool);outline-offset:2px}
   .handle span{
@@ -160,24 +160,41 @@
     position:absolute;top:12px;
     font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
     padding:4px 8px;border-radius:4px;
-    background:rgba(22,20,19,.75);
+    background:rgba(255,255,255,.88);
+    border:1px solid var(--line);
     pointer-events:none;
   }
   .tag.a{left:12px;color:var(--warm)}
   .tag.b{right:12px;color:var(--cool)}
 
   .err{
-    color:#e07a6a;font-size:13px;margin-top:10px;display:none;
+    color:#bb4530;font-size:13px;margin-top:10px;display:none;
     font-family:'JetBrains Mono',monospace;
   }
-  footer{margin-top:auto;padding-top:28px;color:#6d655e;font-size:12px}
+  footer{margin-top:auto;padding-top:28px;color:#9a948c;font-size:12px}
+
+  /* Embed mode: share links open with the header hidden */
+  body.embed header,
+  body.embed footer{display:none}
+  .full-link{
+    display:none;
+    margin-top:14px;
+    color:var(--muted);
+    font-size:13px;
+    text-decoration:none;
+    border-bottom:1px solid var(--line);
+    padding-bottom:2px;
+    transition:color .15s, border-color .15s;
+  }
+  .full-link:hover{color:var(--text);border-color:var(--muted)}
+  body.embed .full-link{display:inline-block}
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
 <body>
 
 <header>
-  <h1><span class="a">A</span><span class="bar"> / </span><span class="b">B</span> Split</h1>
+  <h1><span class="a">Image</span> <span class="b">Compare</span></h1>
   <p>Paste two image URLs, then drag the divider to compare. Copy a share link to open this tool with both images preloaded.</p>
 </header>
 
@@ -197,6 +214,8 @@
   <span id="emptyMsg">Enter two image URLs above and press “Load images”.</span>
 </div>
 <p class="err" id="errMsg"></p>
+
+<a class="full-link" id="fullLink" href="#">Open the full comparison tool with these images →</a>
 
 <button id="shareBtn" title="Copy a URL that opens this page with both images preloaded">Copy share link</button>
 
@@ -306,6 +325,11 @@
       u.searchParams.set('a', a);
       u.searchParams.set('b', b);
       window.history.replaceState(null, '', u.toString());
+      // keep the "full tool" link pointing at the current images
+      const fl = document.getElementById('fullLink');
+      const fu = new URL(u.toString());
+      fu.searchParams.delete('embed');
+      fl.href = fu.toString();
     }catch(e){ /* sandboxed environments may disallow this */ }
   }
 
@@ -322,6 +346,7 @@
     u.search = '';
     u.searchParams.set('a', a);
     u.searchParams.set('b', b);
+    u.searchParams.set('embed', '1');   // share links open with the header hidden
     const link = u.toString();
     try{
       await navigator.clipboard.writeText(link);
@@ -338,9 +363,21 @@
   });
 
   // Preload from URL parameters: ?a=...&b=...  (also accepts img1/img2, left/right)
+  // Add &embed=1 to hide the header (this is what "Copy share link" produces).
   const params = new URLSearchParams(window.location.search);
   const pA = params.get('a') || params.get('img1') || params.get('left');
   const pB = params.get('b') || params.get('img2') || params.get('right');
+  const isEmbed = params.get('embed') === '1';
+
+  if(isEmbed){
+    document.body.classList.add('embed');
+    // Link below the slider that opens the full tool (header + slider) with the same images
+    const fullLink = document.getElementById('fullLink');
+    const u = new URL(window.location.href);
+    u.searchParams.delete('embed');
+    fullLink.href = u.toString();
+  }
+
   if(pA && pB){
     inputA.value = pA;
     inputB.value = pB;
