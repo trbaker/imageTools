@@ -120,7 +120,12 @@
     object-fit:contain;
     pointer-events:none;
     display:block;
+    -webkit-user-drag:none;
+    user-select:none;
+    -webkit-user-select:none;
   }
+  .stage{-webkit-touch-callout:none;-webkit-user-select:none}
+  body.dragging{user-select:none;-webkit-user-select:none;cursor:ew-resize}
   #imgB{clip-path:inset(0 0 0 50%)}
 
   .divider{
@@ -244,8 +249,8 @@
   function buildViewer(srcA, srcB){
     stage.classList.remove('empty');
     stage.innerHTML =
-      '<img id="imgA" alt="Image A">' +
-      '<img id="imgB" alt="Image B">' +
+      '<img id="imgA" alt="Image A" draggable="false">' +
+      '<img id="imgB" alt="Image B" draggable="false">' +
       '<div class="divider" id="divider">' +
         '<div class="handle" id="handle" tabindex="0" role="slider" ' +
         'aria-label="Comparison divider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">' +
@@ -308,13 +313,25 @@
 
   function bindDrag(){
     stage.addEventListener('pointerdown', e=>{
+      e.preventDefault();                    // stops text/image selection from starting
       dragging = true;
+      document.body.classList.add('dragging');
       stage.setPointerCapture(e.pointerId);
       posFromEvent(e);
     });
     stage.addEventListener('pointermove', e=>{ if(dragging) posFromEvent(e); });
-    stage.addEventListener('pointerup',   ()=>{ dragging=false; });
-    stage.addEventListener('pointercancel',()=>{ dragging=false; });
+    stage.addEventListener('pointerup',   ()=>{ stopDrag(); });
+    stage.addEventListener('pointercancel',()=>{ stopDrag(); });
+    stage.addEventListener('dragstart', e=> e.preventDefault());
+    stage.addEventListener('selectstart', e=> e.preventDefault());
+
+    function stopDrag(){
+      dragging = false;
+      document.body.classList.remove('dragging');
+      // clear any selection that slipped through (e.g. drag started outside the stage)
+      const sel = window.getSelection && window.getSelection();
+      if(sel && !sel.isCollapsed) sel.removeAllRanges();
+    }
 
     handle.addEventListener('keydown', e=>{
       const step = e.shiftKey ? 10 : 2;
