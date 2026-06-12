@@ -1,4 +1,4 @@
-# imageTools
+# Image tools and more
 web tools for accessing images or enhancing their presentation
 
 <a href="swipe.html">Embeddable swipe</a><br>
