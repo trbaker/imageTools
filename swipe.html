@@ -168,12 +168,9 @@
   body.embed .controls,
   body.embed #shareBtn{display:none}
   /* Edge-to-edge layout for iframe embedding */
-  body.embed{padding:0;min-height:100vh}
+  body.embed{padding:0;min-height:100vh;justify-content:center}
   body.embed .stage{
-    flex:1;
-    width:100%;
     max-width:none;
-    aspect-ratio:auto;
     border:none;
     border-radius:0;
   }
@@ -267,6 +264,7 @@
         showError('Could not load: ' + failed.join(', ') +
           ' — check the URL, and note some hosts block embedding.');
       }
+      fitStage();
     }
     imgA.onload = done; imgB.onload = done;
     imgA.onerror = ()=>{ failed.push('Image A'); done(); };
@@ -278,6 +276,20 @@
     applyPos();
     loaded = true;
     bindDrag();
+  }
+
+  // Match the stage to the image's own aspect ratio (portrait or landscape),
+  // capped so tall images never grow beyond the viewport height.
+  function fitStage(){
+    const w = imgA.naturalWidth  || imgB.naturalWidth;
+    const h = imgA.naturalHeight || imgB.naturalHeight;
+    if(!w || !h) return;
+    const ratio = w / h;
+    const maxH = document.body.classList.contains('embed')
+      ? 'calc(100vh - 34px)'   /* leave room for the "Open the full tool" link */
+      : '80vh';
+    stage.style.aspectRatio = w + ' / ' + h;
+    stage.style.width = 'min(100%, calc(' + maxH + ' * ' + ratio + '))';
   }
 
   function applyPos(){
