@@ -1,7 +1,7 @@
 
-web tools for accessing images or enhancing their presentation
+web tools for accessing images or enhancing their presentation. Several tools have share links for direct embedding into platforms like ArcGIS StoryMaps.
 
-<a href="swipe.html">Embeddable swipe</a><br>
+<a href="swipe.html">Embeddable image swipe</a><br>
 <a href="editor.html">Web-based image editor</a><br>
 <a href="/360">360 degree image tools</a><br>
 
