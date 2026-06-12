@@ -156,17 +156,6 @@
   .handle span:first-child{border-right:7px solid var(--warm)}
   .handle span:last-child{border-left:7px solid var(--cool)}
 
-  .tag{
-    position:absolute;top:12px;
-    font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
-    padding:4px 8px;border-radius:4px;
-    background:rgba(255,255,255,.88);
-    border:1px solid var(--line);
-    pointer-events:none;
-  }
-  .tag.a{left:12px;color:var(--warm)}
-  .tag.b{right:12px;color:var(--cool)}
-
   .err{
     color:#bb4530;font-size:13px;margin-top:10px;display:none;
     font-family:'JetBrains Mono',monospace;
@@ -248,7 +237,6 @@
     stage.innerHTML =
       '<img id="imgA" alt="Image A">' +
       '<img id="imgB" alt="Image B">' +
-      '<span class="tag a">A</span><span class="tag b">B</span>' +
       '<div class="divider" id="divider">' +
         '<div class="handle" id="handle" tabindex="0" role="slider" ' +
         'aria-label="Comparison divider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">' +
