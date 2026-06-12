@@ -175,7 +175,9 @@
 
   /* Embed mode: share links open with the header hidden */
   body.embed header,
-  body.embed footer{display:none}
+  body.embed footer,
+  body.embed .controls,
+  body.embed #shareBtn{display:none}
   .full-link{
     display:none;
     margin-top:14px;
@@ -215,7 +217,7 @@
 </div>
 <p class="err" id="errMsg"></p>
 
-<a class="full-link" id="fullLink" href="#">Open the full comparison tool with these images →</a>
+<a class="full-link" id="fullLink" href="#" target="_blank" rel="noopener">Open the full comparison tool with these images →</a>
 
 <button id="shareBtn" title="Copy a URL that opens this page with both images preloaded">Copy share link</button>
 
