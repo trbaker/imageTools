@@ -167,6 +167,18 @@
   body.embed footer,
   body.embed .controls,
   body.embed #shareBtn{display:none}
+  /* Edge-to-edge layout for iframe embedding */
+  body.embed{padding:0;min-height:100vh}
+  body.embed .stage{
+    flex:1;
+    width:100%;
+    max-width:none;
+    aspect-ratio:auto;
+    border:none;
+    border-radius:0;
+  }
+  body.embed .err{margin:4px 8px}
+  body.embed .full-link{margin:4px 0 6px;font-size:12px}
   .full-link{
     display:none;
     margin-top:14px;
