@@ -1,5 +1,5 @@
 
-web tools for accessing images or enhancing their presentation. Several tools have share links for direct embedding into platforms like ArcGIS StoryMaps.
+web tools for accessing images or enhancing their presentation. Several tools have share links for direct embedding into platforms like ArcGIS StoryMaps.<br><br>
 <b>Images</b><br>
 <a href="swipe.html">Embeddable image swipe</a><br>
 <a href="editor.html">Web-based image editor</a><br>
@@ -7,9 +7,7 @@ web tools for accessing images or enhancing their presentation. Several tools ha
 <a href="https://trbaker.github.io/20260508_map/geotag-explorer.html">Image geotag explorer</a><br>
 
 <br>
-<b>Readability<br>
 <a href="https://trbaker.github.io/">More tools</a>
-
 <br><br>
 <hr>
 <br><br>
