@@ -4,9 +4,11 @@ web tools for accessing images or enhancing their presentation. Several tools ha
 <a href="swipe.html">Embeddable image swipe</a><br>
 <a href="editor.html">Web-based image editor</a><br>
 <a href="/360">360 degree image tools</a><br>
+<a href="https://trbaker.github.io/20260508_map/geotag-explorer.html">Image geotag explorer</a><br>
+
 <br>
 <b>Readability<br>
-<a href="https://trbaker.github.io/vibe/storymap-readability.html">StoryMap Readability</a>
+<a href="https://trbaker.github.io/">More tools</a>
 
 <br><br>
 <hr>
