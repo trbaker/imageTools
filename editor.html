@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Darkroom — crop, resize &amp; privacy-safe export</title>
+<style>
+  :root{
+    --bg:#f6f4ef;
+    --panel:#ffffff;
+    --panel-2:#f1efe9;
+    --line:#ddd9cf;
+    --ink:#26292f;
+    --muted:#6e7178;
+    --accent:#e04e2c;       /* safelight */
+    --accent-soft:rgba(224,78,44,.10);
+    --ok:#2e8b57;
+    --warn:#a9740f;
+    --mono:ui-monospace,"SF Mono","Cascadia Mono",Consolas,Menlo,monospace;
+    --sans:"Avenir Next","Segoe UI",system-ui,-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg);color:var(--ink);font-family:var(--sans);
+    min-height:100vh;display:flex;flex-direction:column;
+  }
+  header{
+    display:flex;align-items:baseline;gap:14px;
+    padding:18px 24px 14px;border-bottom:1px solid var(--line);background:var(--panel);
+  }
+  header h1{font-size:17px;font-weight:600;letter-spacing:.04em;margin:0}
+  header h1 .dot{color:var(--accent)}
+  header p{margin:0;color:var(--muted);font-size:13px}
+
+  main{display:flex;flex:1;min-height:0}
+  /* ---------- stage ---------- */
+  #stage{
+    flex:1;display:flex;align-items:center;justify-content:center;
+    padding:24px;min-width:0;position:relative;
+  }
+  #dropzone{
+    border:1.5px dashed var(--line);border-radius:12px;
+    width:min(560px,90%);padding:56px 32px;text-align:center;color:var(--muted);
+    transition:border-color .15s,background .15s;
+  }
+  #dropzone.dragover{border-color:var(--accent);background:var(--accent-soft)}
+  #dropzone strong{color:var(--ink);font-weight:600}
+  #dropzone .formats{font-family:var(--mono);font-size:11px;letter-spacing:.08em;margin-top:14px;color:var(--muted)}
+
+  #canvasWrap{position:relative;display:none;max-width:100%;max-height:100%;touch-action:none;user-select:none}
+  #view{display:block;max-width:100%;border-radius:6px;box-shadow:0 2px 14px rgba(38,41,47,.12);background:
+    repeating-conic-gradient(#e6e3da 0% 25%, #f3f1ea 0% 50%) 0 0/16px 16px}
+  #cropBox{
+    position:absolute;border:1.5px solid var(--accent);
+    box-shadow:0 0 0 9999px rgba(38,41,47,.45);cursor:move;
+  }
+  #cropBox .dim{
+    position:absolute;top:-24px;left:0;font-family:var(--mono);font-size:11px;
+    color:#fff;background:rgba(38,41,47,.85);padding:2px 7px;border-radius:4px;white-space:nowrap;
+  }
+  .handle{
+    position:absolute;width:14px;height:14px;background:var(--accent);
+    border:2px solid #fff;border-radius:50%;
+  }
+  .h-nw{top:-8px;left:-8px;cursor:nwse-resize}.h-n{top:-8px;left:calc(50% - 7px);cursor:ns-resize}
+  .h-ne{top:-8px;right:-8px;cursor:nesw-resize}.h-e{top:calc(50% - 7px);right:-8px;cursor:ew-resize}
+  .h-se{bottom:-8px;right:-8px;cursor:nwse-resize}.h-s{bottom:-8px;left:calc(50% - 7px);cursor:ns-resize}
+  .h-sw{bottom:-8px;left:-8px;cursor:nesw-resize}.h-w{top:calc(50% - 7px);left:-8px;cursor:ew-resize}
+
+  /* ---------- sidebar ---------- */
+  aside{
+    width:330px;flex-shrink:0;background:var(--panel);border-left:1px solid var(--line);
+    padding:20px;overflow-y:auto;display:flex;flex-direction:column;gap:20px;
+  }
+  section h2{
+    font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--muted);margin:0 0 10px;
+  }
+  .row{display:flex;gap:8px;align-items:center}
+  .row + .row{margin-top:8px}
+  label{font-size:13px;color:var(--muted)}
+  input[type=text],input[type=number],input[type=url]{
+    background:var(--panel-2);border:1px solid var(--line);color:var(--ink);
+    border-radius:6px;padding:8px 10px;font-size:13px;width:100%;font-family:var(--mono);
+  }
+  input:focus-visible,button:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  input[type=number]{width:88px}
+  button{
+    background:var(--panel-2);border:1px solid var(--line);color:var(--ink);
+    border-radius:6px;padding:8px 14px;font-size:13px;cursor:pointer;font-family:var(--sans);
+    transition:background .12s,border-color .12s;
+  }
+  button:hover{border-color:var(--muted)}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+  button.primary:hover{filter:brightness(1.06)}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  select{
+    background:var(--panel-2);border:1px solid var(--line);color:var(--ink);
+    border-radius:6px;padding:8px 10px;font-size:13px;
+  }
+  .ghost{width:100%}
+  .hint{font-size:11.5px;color:var(--muted);margin-top:6px;line-height:1.45}
+
+  /* location panel — the metadata strip */
+  #geoPanel{
+    border:1px solid var(--line);border-radius:8px;background:var(--panel-2);
+    padding:12px 14px;display:none;
+  }
+  #geoPanel .lamp{
+    display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:8px;vertical-align:-1px;
+  }
+  #geoPanel.found .lamp{background:var(--warn);box-shadow:0 0 8px var(--warn)}
+  #geoPanel.clean .lamp{background:var(--ok)}
+  #geoPanel .status{font-size:13px;font-weight:600}
+  #geoCoords{
+    font-family:var(--mono);font-size:12.5px;margin:10px 0 4px;color:var(--ink);
+    word-break:break-all;line-height:1.6;
+  }
+  #geoCoords a{color:var(--accent);text-decoration:none}
+  #geoCoords a:hover{text-decoration:underline}
+  .checkline{display:flex;gap:9px;align-items:flex-start;margin-top:10px;font-size:13px;color:var(--ink)}
+  .checkline input{margin-top:2px;accent-color:var(--accent)}
+
+  #fileInfo{font-family:var(--mono);font-size:12px;color:var(--muted);line-height:1.7;display:none}
+  #fileInfo b{color:var(--ink);font-weight:600}
+  #qualityRow{align-items:center}
+  #quality{flex:1;accent-color:var(--accent)}
+  #qVal{font-family:var(--mono);font-size:12px;width:34px;text-align:right}
+  #msg{font-size:12.5px;color:var(--warn);min-height:1em;line-height:1.4}
+  #saveBtn{width:100%;padding:11px;font-size:14px;margin-top:4px}
+  .aspectBtns{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .aspectBtns button{padding:5px 10px;font-size:12px;font-family:var(--mono)}
+
+  @media (max-width:860px){
+    main{flex-direction:column}
+    aside{width:100%;border-left:none;border-top:1px solid var(--line)}
+    #stage{padding:14px;min-height:46vh}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Darkroom<span class="dot">.</span></h1>
+  <p>Crop, resize &amp; export — checks for embedded location data before you save.</p>
+</header>
+
+<main>
+  <div id="stage">
+    <div id="dropzone">
+      <strong>Drop an image here</strong> or use the panel to browse / paste a URL.
+      <div class="formats">JPG · PNG · HEIC · WEBP</div>
+    </div>
+    <div id="canvasWrap">
+      <canvas id="view"></canvas>
+      <div id="cropBox">
+        <span class="dim" id="cropDim"></span>
+        <div class="handle h-nw" data-h="nw"></div><div class="handle h-n" data-h="n"></div>
+        <div class="handle h-ne" data-h="ne"></div><div class="handle h-e" data-h="e"></div>
+        <div class="handle h-se" data-h="se"></div><div class="handle h-s" data-h="s"></div>
+        <div class="handle h-sw" data-h="sw"></div><div class="handle h-w" data-h="w"></div>
+      </div>
+    </div>
+  </div>
+
+  <aside>
+    <section>
+      <h2>Source</h2>
+      <div class="row">
+        <button class="ghost" id="browseBtn">Browse for a file…</button>
+        <input type="file" id="fileInput" accept=".jpg,.jpeg,.png,.heic,.heif,.webp,image/*" hidden>
+      </div>
+      <div class="row">
+        <input type="url" id="urlInput" placeholder="https://example.com/photo.jpg">
+        <button id="urlBtn">Load</button>
+      </div>
+      <p class="hint">URL loading depends on the remote server allowing cross-origin access (CORS). HEIC conversion loads a small decoder from a CDN, so it needs an internet connection once; everything else runs fully offline.</p>
+      <div id="fileInfo"></div>
+    </section>
+
+    <section id="geoSection" style="display:none">
+      <h2>Location check</h2>
+      <div id="geoPanel">
+        <span class="lamp"></span><span class="status" id="geoStatus"></span>
+        <div id="geoCoords"></div>
+        <div class="checkline" id="geoChoice" style="display:none">
+          <input type="checkbox" id="stripGps" checked>
+          <label for="stripGps" style="color:var(--ink)">Remove location data from the saved file</label>
+        </div>
+        <p class="hint" id="geoNote"></p>
+      </div>
+    </section>
+
+    <section id="cropSection" style="display:none">
+      <h2>Crop</h2>
+      <div class="row">
+        <button id="resetCrop">Reset to full image</button>
+      </div>
+      <div class="aspectBtns">
+        <button data-ar="free">Free</button><button data-ar="1">1:1</button>
+        <button data-ar="1.3333">4:3</button><button data-ar="1.5">3:2</button>
+        <button data-ar="1.7778">16:9</button>
+      </div>
+      <p class="hint">Drag the box to move it; drag a corner or edge to resize the selection.</p>
+    </section>
+
+    <section id="outSection" style="display:none">
+      <h2>Output</h2>
+      <div class="row">
+        <label for="outW">W</label><input type="number" id="outW" min="1">
+        <label for="outH">H</label><input type="number" id="outH" min="1">
+        <button id="lockBtn" title="Lock aspect ratio" aria-pressed="true">🔒</button>
+      </div>
+      <div class="row">
+        <label for="format">Format</label>
+        <select id="format">
+          <option value="image/jpeg">JPG</option>
+          <option value="image/png">PNG</option>
+        </select>
+      </div>
+      <div class="row" id="qualityRow">
+        <label for="quality">Quality</label>
+        <input type="range" id="quality" min="50" max="100" value="90">
+        <span id="qVal">90</span>
+      </div>
+      <button class="primary" id="saveBtn">Save image</button>
+      <p id="msg" role="status"></p>
+    </section>
+  </aside>
+</main>
+
+<script>
+"use strict";
+/* ============================================================
+   Darkroom — single-file image editor
+   No server, no API calls. The only optional network use is a
+   one-time CDN fetch of heic2any when a HEIC file is opened.
+   ============================================================ */
+
+const $ = id => document.getElementById(id);
+const state = {
+  img: null,            // ImageBitmap or HTMLImageElement (orientation applied)
+  imgW: 0, imgH: 0,
+  name: "image",
+  exif: null,           // { segment:Uint8Array, gps:{lat,lon}|null, orientationPatch:int|null }
+  crop: {x:0, y:0, w:0, h:0},   // in image pixels
+  scale: 1,             // display px per image px
+  lockAspect: true,
+  aspect: null          // forced crop aspect or null
+};
+
+/* ---------------- EXIF / GPS parsing (JPEG) ---------------- */
+function parseJpegExif(buf){
+  const v = new DataView(buf);
+  if (v.byteLength < 4 || v.getUint16(0) !== 0xFFD8) return null;
+  let off = 2;
+  while (off + 4 <= v.byteLength){
+    const marker = v.getUint16(off);
+    if ((marker & 0xFF00) !== 0xFF00) break;
+    const size = v.getUint16(off + 2);
+    if (marker === 0xFFE1 && off + 10 <= v.byteLength &&
+        v.getUint32(off + 4) === 0x45786966 /* "Exif" */ &&
+        v.getUint16(off + 8) === 0x0000){
+      const segLen = 2 + size;
+      const segment = new Uint8Array(buf.slice(off, off + segLen));
+      const tiff = off + 10;
+      const info = parseTiff(v, tiff, off);
+      return { segment, gps: info.gps, orientationPatch: info.orientationPatch };
+    }
+    if (marker === 0xFFDA) break; // start of image data
+    off += 2 + size;
+  }
+  return null;
+}
+
+function parseTiff(v, tiff, segStart){
+  const out = { gps: null, orientationPatch: null };
+  try{
+    const bom = v.getUint16(tiff);
+    const le = bom === 0x4949;                       // "II" little-endian
+    if (!le && bom !== 0x4D4D) return out;
+    if (v.getUint16(tiff + 2, le) !== 42) return out;
+    const ifd0 = tiff + v.getUint32(tiff + 4, le);
+    let gpsIfdOff = null;
+    const n = v.getUint16(ifd0, le);
+    for (let i = 0; i < n; i++){
+      const e = ifd0 + 2 + i * 12;
+      const tag = v.getUint16(e, le);
+      if (tag === 0x8825) gpsIfdOff = tiff + v.getUint32(e + 8, le);
+      if (tag === 0x0112) out.orientationPatch = (e + 8) - segStart; // patch later
+    }
+    if (gpsIfdOff !== null) out.gps = parseGpsIfd(v, tiff, gpsIfdOff, le);
+    out.le = le;
+  }catch(_){ /* malformed EXIF — treat as none */ }
+  return out;
+}
+
+function parseGpsIfd(v, tiff, ifd, le){
+  const vals = {};
+  const n = v.getUint16(ifd, le);
+  for (let i = 0; i < n; i++){
+    const e = ifd + 2 + i * 12;
+    const tag = v.getUint16(e, le);
+    const type = v.getUint16(e + 2, le);
+    const count = v.getUint32(e + 4, le);
+    if ((tag === 1 || tag === 3) && type === 2){        // LatRef / LonRef, ASCII inline
+      vals[tag] = String.fromCharCode(v.getUint8(e + 8));
+    } else if ((tag === 2 || tag === 4) && type === 5 && count === 3){ // 3 rationals
+      const p = tiff + v.getUint32(e + 8, le);
+      const r = j => {
+        const den = v.getUint32(p + j * 8 + 4, le);
+        return den ? v.getUint32(p + j * 8, le) / den : 0;
+      };
+      vals[tag] = r(0) + r(1) / 60 + r(2) / 3600;
+    }
+  }
+  if (vals[2] === undefined || vals[4] === undefined) return null;
+  let lat = vals[2], lon = vals[4];
+  if (vals[1] === "S") lat = -lat;
+  if (vals[3] === "W") lon = -lon;
+  return { lat, lon };
+}
+
+/* Re-insert the original EXIF APP1 segment into a freshly encoded JPEG,
+   with the Orientation tag normalized to 1 (the canvas already applied it). */
+function injectExif(jpegBuf, exif){
+  const seg = new Uint8Array(exif.segment);            // copy — we may patch it
+  if (exif.orientationPatch !== null){
+    const v = new DataView(seg.buffer);
+    const le = seg[10] === 0x49;                       // "I" of "II" at tiff start (offset 10)
+    v.setUint16(exif.orientationPatch, 1, le);
+  }
+  const src = new Uint8Array(jpegBuf);
+  const out = new Uint8Array(src.length + seg.length);
+  out.set(src.subarray(0, 2), 0);                      // SOI
+  out.set(seg, 2);                                     // EXIF APP1
+  out.set(src.subarray(2), 2 + seg.length);            // rest of file
+  return out;
+}
+
+/* ---------------- loading ---------------- */
+$("browseBtn").onclick = () => $("fileInput").click();
+$("fileInput").onchange = e => { if (e.target.files[0]) openBlob(e.target.files[0], e.target.files[0].name); };
+
+const dz = $("dropzone"), stage = $("stage");
+["dragover","dragenter"].forEach(ev => stage.addEventListener(ev, e => { e.preventDefault(); dz.classList.add("dragover"); }));
+["dragleave","drop"].forEach(ev => stage.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove("dragover"); }));
+stage.addEventListener("drop", e => {
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) openBlob(f, f.name);
+});
+
+$("urlBtn").onclick = loadUrl;
+$("urlInput").addEventListener("keydown", e => { if (e.key === "Enter") loadUrl(); });
+async function loadUrl(){
+  const url = $("urlInput").value.trim();
+  if (!url) return;
+  setMsg("Fetching…", false);
+  try{
+    const res = await fetch(url, { mode: "cors" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const blob = await res.blob();
+    const name = (url.split("/").pop() || "image").split("?")[0];
+    await openBlob(blob, name);
+    setMsg("");
+  }catch(err){
+    setMsg("Couldn't load that URL. The server may not allow cross-origin requests — try downloading the image and opening it as a file instead.", true);
+  }
+}
+
+let heicReady = null;
+function loadHeicDecoder(){
+  if (window.heic2any) return Promise.resolve();
+  if (heicReady) return heicReady;
+  heicReady = new Promise((res, rej) => {
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/heic2any/0.0.4/heic2any.min.js";
+    s.onload = res;
+    s.onerror = () => rej(new Error("decoder"));
+    document.head.appendChild(s);
+  });
+  return heicReady;
+}
+
+async function openBlob(blob, name){
+  setMsg("");
+  state.name = (name || "image").replace(/\.[^.]+$/, "");
+  let workBlob = blob;
+  const isHeic = /\.hei[cf]$/i.test(name || "") || /heic|heif/.test(blob.type);
+
+  if (isHeic){
+    setMsg("Converting HEIC…", false);
+    try{
+      await loadHeicDecoder();
+      workBlob = await heic2any({ blob, toType: "image/png" });
+      if (Array.isArray(workBlob)) workBlob = workBlob[0];
+    }catch(_){
+      setMsg("HEIC conversion needs the decoder from the CDN and it couldn't be loaded. Check your connection, or convert the file to JPG/PNG first.", true);
+      return;
+    }
+  }
+
+  // EXIF / GPS check (JPEG only — other formats are re-encoded, which
+  // strips embedded metadata automatically)
+  state.exif = null;
+  if (!isHeic){
+    try{
+      const head = await workBlob.slice(0, 256 * 1024).arrayBuffer();
+      const v = new DataView(head);
+      if (v.byteLength > 2 && v.getUint16(0) === 0xFFD8){
+        state.exif = parseJpegExif(await workBlob.arrayBuffer());
+      }
+    }catch(_){}
+  }
+
+  // decode pixels (orientation applied where supported)
+  let img;
+  try{
+    img = await createImageBitmap(workBlob, { imageOrientation: "from-image" });
+  }catch(_){
+    try{ img = await createImageBitmap(workBlob); }
+    catch(_2){
+      img = await new Promise((res, rej) => {
+        const i = new Image();
+        i.onload = () => res(i); i.onerror = rej;
+        i.src = URL.createObjectURL(workBlob);
+      });
+    }
+  }
+
+  state.img = img;
+  state.imgW = img.width; state.imgH = img.height;
+  state.crop = { x: 0, y: 0, w: img.width, h: img.height };
+  state.aspect = null;
+
+  $("dropzone").style.display = "none";
+  $("canvasWrap").style.display = "block";
+  ["geoSection","cropSection","outSection"].forEach(id => $(id).style.display = "block");
+
+  $("fileInfo").style.display = "block";
+  $("fileInfo").innerHTML =
+    `file&nbsp;&nbsp;&nbsp;<b>${escapeHtml(name || "image")}</b><br>` +
+    `pixels&nbsp;<b>${img.width} × ${img.height}</b><br>` +
+    `size&nbsp;&nbsp;&nbsp;<b>${(blob.size/1024).toFixed(0)} KB</b>`;
+
+  renderGeoPanel(isHeic);
+  fitCanvas();
+  drawImage();
+  syncCropBox();
+  setOutputFromCrop();
+  setMsg("");
+}
+
+function escapeHtml(s){ return s.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+/* ---------------- location panel ---------------- */
+function renderGeoPanel(wasHeic){
+  const p = $("geoPanel");
+  p.style.display = "block";
+  const gps = state.exif && state.exif.gps;
+  if (gps){
+    p.className = "found";
+    $("geoStatus").textContent = "Location data found in this image";
+    const lat = gps.lat.toFixed(6), lon = gps.lon.toFixed(6);
+    $("geoCoords").innerHTML =
+      `lat ${lat}<br>lon ${lon}<br>` +
+      `<a href="https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=15/${lat}/${lon}" target="_blank" rel="noopener">view on a map ↗</a>`;
+    $("geoChoice").style.display = "flex";
+    $("stripGps").checked = true;
+    $("geoNote").textContent = "Leave this checked to save a clean file. Unchecking it keeps the photo's original metadata (including GPS) — that only works for JPG output.";
+  } else {
+    p.className = "clean";
+    $("geoStatus").textContent = "No location data detected";
+    $("geoCoords").textContent = "";
+    $("geoChoice").style.display = "none";
+    $("geoNote").textContent = wasHeic
+      ? "HEIC metadata isn't inspected, but conversion re-encodes the pixels, so no embedded metadata carries into the saved file."
+      : "Saved files are re-encoded from pixels, so no hidden metadata is carried over.";
+  }
+}
+
+/* ---------------- canvas & crop ---------------- */
+const view = $("view"), wrap = $("canvasWrap"), box = $("cropBox");
+
+function fitCanvas(){
+  const pad = 48;
+  const availW = Math.max(stage.clientWidth - pad, 100);
+  const availH = Math.max(stage.clientHeight - pad, 100);
+  state.scale = Math.min(availW / state.imgW, availH / state.imgH, 1);
+  view.width = Math.round(state.imgW * state.scale);
+  view.height = Math.round(state.imgH * state.scale);
+}
+function drawImage(){
+  const ctx = view.getContext("2d");
+  ctx.clearRect(0, 0, view.width, view.height);
+  ctx.drawImage(state.img, 0, 0, view.width, view.height);
+}
+function syncCropBox(){
+  const s = state.scale, c = state.crop;
+  box.style.left = (c.x * s) + "px";
+  box.style.top = (c.y * s) + "px";
+  box.style.width = (c.w * s) + "px";
+  box.style.height = (c.h * s) + "px";
+  $("cropDim").textContent = Math.round(c.w) + " × " + Math.round(c.h) + " px";
+}
+
+window.addEventListener("resize", () => {
+  if (!state.img) return;
+  fitCanvas(); drawImage(); syncCropBox();
+});
+
+/* drag interactions */
+let drag = null;
+box.addEventListener("pointerdown", e => {
+  e.preventDefault();
+  box.setPointerCapture(e.pointerId);
+  const h = e.target.dataset && e.target.dataset.h;
+  drag = {
+    mode: h || "move",
+    sx: e.clientX, sy: e.clientY,
+    crop: { ...state.crop }
+  };
+});
+box.addEventListener("pointermove", e => {
+  if (!drag) return;
+  const s = state.scale;
+  const dx = (e.clientX - drag.sx) / s;
+  const dy = (e.clientY - drag.sy) / s;
+  const c0 = drag.crop;
+  let { x, y, w, h } = c0;
+  const minSz = 16;
+
+  if (drag.mode === "move"){
+    x = clamp(c0.x + dx, 0, state.imgW - c0.w);
+    y = clamp(c0.y + dy, 0, state.imgH - c0.h);
+  } else {
+    let x1 = c0.x, y1 = c0.y, x2 = c0.x + c0.w, y2 = c0.y + c0.h;
+    if (drag.mode.includes("w")) x1 = clamp(c0.x + dx, 0, x2 - minSz);
+    if (drag.mode.includes("e")) x2 = clamp(c0.x + c0.w + dx, x1 + minSz, state.imgW);
+    if (drag.mode.includes("n")) y1 = clamp(c0.y + dy, 0, y2 - minSz);
+    if (drag.mode.includes("s")) y2 = clamp(c0.y + c0.h + dy, y1 + minSz, state.imgH);
+    x = x1; y = y1; w = x2 - x1; h = y2 - y1;
+
+    if (state.aspect){ // constrain
+      const ar = state.aspect;
+      if (drag.mode === "n" || drag.mode === "s"){ w = h * ar; }
+      else { h = w / ar; }
+      if (drag.mode.includes("n")) y = (c0.y + c0.h) - h;
+      if (drag.mode.includes("w")) x = (c0.x + c0.w) - w;
+      // keep inside image
+      if (x < 0){ w += x; h = w / ar; x = 0; if (drag.mode.includes("n")) y = (c0.y+c0.h)-h; }
+      if (y < 0){ h += y; w = h * ar; y = 0; if (drag.mode.includes("w")) x = (c0.x+c0.w)-w; }
+      if (x + w > state.imgW){ w = state.imgW - x; h = w / ar; }
+      if (y + h > state.imgH){ h = state.imgH - y; w = h * ar; }
+    }
+  }
+  state.crop = { x, y, w, h };
+  syncCropBox();
+});
+const endDrag = e => { if (drag){ drag = null; setOutputFromCrop(); } };
+box.addEventListener("pointerup", endDrag);
+box.addEventListener("pointercancel", endDrag);
+
+function clamp(v, lo, hi){ return Math.min(Math.max(v, lo), hi); }
+
+$("resetCrop").onclick = () => {
+  state.crop = { x: 0, y: 0, w: state.imgW, h: state.imgH };
+  state.aspect = null;
+  syncCropBox(); setOutputFromCrop();
+};
+document.querySelectorAll(".aspectBtns button").forEach(b => {
+  b.onclick = () => {
+    const v = b.dataset.ar;
+    if (v === "free"){ state.aspect = null; return; }
+    const ar = parseFloat(v);
+    state.aspect = ar;
+    // refit current crop to the new aspect, centered
+    let { x, y, w, h } = state.crop;
+    if (w / h > ar) { const nw = h * ar; x += (w - nw) / 2; w = nw; }
+    else            { const nh = w / ar; y += (h - nh) / 2; h = nh; }
+    state.crop = { x, y, w, h };
+    syncCropBox(); setOutputFromCrop();
+  };
+});
+
+/* ---------------- output controls ---------------- */
+function setOutputFromCrop(){
+  $("outW").value = Math.round(state.crop.w);
+  $("outH").value = Math.round(state.crop.h);
+}
+$("outW").oninput = () => {
+  if (state.lockAspect){
+    const ar = state.crop.w / state.crop.h;
+    $("outH").value = Math.max(1, Math.round(($("outW").value || 1) / ar));
+  }
+};
+$("outH").oninput = () => {
+  if (state.lockAspect){
+    const ar = state.crop.w / state.crop.h;
+    $("outW").value = Math.max(1, Math.round(($("outH").value || 1) * ar));
+  }
+};
+$("lockBtn").onclick = () => {
+  state.lockAspect = !state.lockAspect;
+  $("lockBtn").textContent = state.lockAspect ? "🔒" : "🔓";
+  $("lockBtn").setAttribute("aria-pressed", state.lockAspect);
+};
+$("format").onchange = () => {
+  $("qualityRow").style.display = $("format").value === "image/jpeg" ? "flex" : "none";
+};
+$("quality").oninput = () => $("qVal").textContent = $("quality").value;
+
+function setMsg(t, isErr){
+  $("msg").textContent = t || "";
+  $("msg").style.color = isErr ? "var(--warn)" : "var(--muted)";
+}
+
+/* ---------------- save ---------------- */
+$("saveBtn").onclick = async () => {
+  if (!state.img) return;
+  const W = Math.max(1, parseInt($("outW").value, 10) || Math.round(state.crop.w));
+  const H = Math.max(1, parseInt($("outH").value, 10) || Math.round(state.crop.h));
+  const fmt = $("format").value;
+  const q = parseInt($("quality").value, 10) / 100;
+
+  const cv = document.createElement("canvas");
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext("2d");
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  if (fmt === "image/jpeg"){ ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, W, H); }
+  const c = state.crop;
+  ctx.drawImage(state.img, c.x, c.y, c.w, c.h, 0, 0, W, H);
+
+  let blob = await new Promise(res => cv.toBlob(res, fmt, q));
+  if (!blob){ setMsg("Export failed — the output may be too large for this browser.", true); return; }
+
+  const keepGps = state.exif && state.exif.gps && !$("stripGps").checked;
+  if (keepGps){
+    if (fmt === "image/jpeg"){
+      const bytes = injectExif(await blob.arrayBuffer(), state.exif);
+      blob = new Blob([bytes], { type: "image/jpeg" });
+    } else {
+      setMsg("Note: PNG export can't carry the original EXIF block, so the saved PNG has no location data.", false);
+    }
+  }
+
+  const ext = fmt === "image/png" ? "png" : "jpg";
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = state.name + "-edited." + ext;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+
+  const gpsState = state.exif && state.exif.gps
+    ? (keepGps && fmt === "image/jpeg" ? "location data kept" : "location data removed")
+    : "no metadata carried over";
+  setMsg(`Saved ${W} × ${H} ${ext.toUpperCase()} — ${gpsState}.`, false);
+};
+</script>
+</body>
+</html>
