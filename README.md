@@ -5,10 +5,6 @@ Web tools for accessing images or enhancing their presentation. Several tools ha
 <LI><a href="/360">360 degree image tools</a><br>
 <LI><a href="https://trbaker.github.io/20260508_map/geotag-explorer.html">Image geotag explorer</a><br>
 
-<br>
-StoryMap tools and more
-<LI><a href="https://arcgis-storymap-briefing-converter.onrender.com/">PowerPoint to StoryMap converter</a>
-<LI><a href="https://trbaker.github.io/">More tools</a>
 
 
 <br><br>
